@@ -343,6 +343,7 @@ angular.module('mgcrea.ngStrap.datepicker', [
           controller.$setValidity('max', isMaxValid);
           // Only update the model when we have a valid date
           if(isValid) controller.$dateValue = parsedDate;
+          return isValid;
         }
 
         // viewValue -> $parsers -> modelValue
@@ -364,7 +365,9 @@ angular.module('mgcrea.ngStrap.datepicker', [
             // invalidate model value
             return;
           } else {
-            validateAgainstMinMaxDate(parsedDate);
+            if (!validateAgainstMinMaxDate(parsedDate)) {
+              return;
+            }
           }
 
           if(options.dateType === 'string') {
