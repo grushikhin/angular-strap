@@ -12,15 +12,19 @@ describe('popover', function () {
     return angular.element(this[0]).triggerHandler(evt);
   };
 
-  beforeEach(inject(function (_$rootScope_, _$compile_, _$templateCache_, _$window_, _$timeout_, _$popover_, _$animate_) {
+  beforeEach(inject(function ($injector, _$rootScope_, _$compile_, _$templateCache_, _$window_, _$timeout_, _$popover_, _$animate_) {
     scope = _$rootScope_;
     $compile = _$compile_;
     $templateCache = _$templateCache_;
     sandboxEl = $('<div>').attr('id', 'sandbox').appendTo('body');
     $window = _$window_;
-    $timeout = _$timeout_;
     $popover = _$popover_;
-    $animate = _$animate_;
+    $animate = $injector.get('$animate');
+    $timeout = $injector.get('$timeout');
+    var flush = $animate.flush || $animate.triggerCallbacks;
+    $animate.flush = function() {
+      flush.call($animate); if(!$animate.triggerCallbacks) $timeout.flush();
+    };
   }));
 
   afterEach(function() {
@@ -34,6 +38,10 @@ describe('popover', function () {
     'default': {
       scope: {popover: {title: 'Title', content: 'Hello Popover!'}},
       element: '<a class="btn" title="{{popover.title}}" data-content="{{popover.content}}" bs-popover></a>'
+    },
+    'default-with-namespace': {
+      scope: {popover: {title: 'Title', content: 'Hello Popover!'}},
+      element: '<a class="btn" title="{{popover.title}}" data-content="{{popover.content}}" bs-popover data-prefix-event="datepicker"></a>'
     },
     'default-with-id': {
       scope: {popover: {title: 'Title', content: 'Hello Popover!'}},
@@ -68,7 +76,7 @@ describe('popover', function () {
     },
     'options-template': {
       scope: {popover: {title: 'Title', content: 'Hello Popover!', counter: 0}, items: ['foo', 'bar', 'baz']},
-      element: '<a data-template="custom" bs-popover="popover">click me</a>'
+      element: '<a data-template-url="custom" bs-popover="popover">click me</a>'
     },
     'options-autoClose': {
       scope: {popover: {title: 'Title', content: '<div class="message">Hello Popover<br>This is a multiline message!</div>'}},
@@ -76,7 +84,7 @@ describe('popover', function () {
     },
     'options-autoClose-with-template': {
       scope: {popover: {title: 'Title', counter: 0, content: 'Hello'}},
-      element: '<a class="btn" data-auto-close="true" data-template="custom" bs-popover="popover"></a>'
+      element: '<a class="btn" data-auto-close="true" data-template-url="custom" bs-popover="popover"></a>'
     },
     'bsShow-attr': {
       scope: {popover: {title: 'Title', content: 'Hello Popover!'}},
@@ -200,7 +208,7 @@ describe('popover', function () {
       expect(emit).toHaveBeenCalledWith('tooltip.show.before', myPopover);
       // show only fires AFTER the animation is complete
       expect(emit).not.toHaveBeenCalledWith('tooltip.show', myPopover);
-      $animate.triggerCallbacks();
+      $animate.flush();
       expect(emit).toHaveBeenCalledWith('tooltip.show', myPopover);
     });
 
@@ -215,7 +223,7 @@ describe('popover', function () {
       expect(emit).toHaveBeenCalledWith('tooltip.hide.before', myPopover);
       // hide only fires AFTER the animation is complete
       expect(emit).not.toHaveBeenCalledWith('tooltip.hide', myPopover);
-      $animate.triggerCallbacks();
+      $animate.flush();
       expect(emit).toHaveBeenCalledWith('tooltip.hide', myPopover);
     });
 
@@ -325,7 +333,7 @@ describe('popover', function () {
         var myPopover = $popover(sandboxEl, angular.extend({}, templates['default'].scope.popover, {container: testElm}));
         scope.$digest();
         myPopover.show();
-        $animate.triggerCallbacks();
+        $animate.flush();
         expect(angular.element(testElm.children()[0]).hasClass('popover')).toBeTruthy();
       });
 
@@ -335,7 +343,7 @@ describe('popover', function () {
         var elm = compileDirective('options-container', angular.extend({}, templates['default'].scope.popover, {container: '#testElm'}));
         expect(testElm.children('.popover').length).toBe(0);
         angular.element(elm[0]).triggerHandler('click');
-        $animate.triggerCallbacks();
+        $animate.flush();
         expect(testElm.children('.popover').length).toBe(1);
       });
 
@@ -343,7 +351,7 @@ describe('popover', function () {
         var elm = compileDirective('options-container', angular.extend({}, templates['default'].scope.popover, {container: 'false'}));
         expect(sandboxEl.children('.popover').length).toBe(0);
         angular.element(elm[0]).triggerHandler('click');
-        $animate.triggerCallbacks();
+        $animate.flush();
         expect(sandboxEl.children('.popover').length).toBe(1);
       });
 
@@ -429,6 +437,7 @@ describe('popover', function () {
       it('should not close when clicking link inside popover content', function() {
         $templateCache.put('custom', '<div class="popover"><div class="popover-content"><a class="btn" ng-click="popover.counter=popover.counter+1">click me</a></div></div>');
         var elm = compileDirective('options-autoClose-with-template');
+        scope.popover.counter = 0;
         expect(sandboxEl.children().length).toBe(1);
         angular.element(elm[0]).triggerHandler('click');
         $timeout.flush();
@@ -461,6 +470,52 @@ describe('popover', function () {
 
     });
 
+    describe('prefix', function () {
+      it('should call namespaced events through provider', function() {
+        var myPopover = $popover(sandboxEl, angular.extend({prefixEvent: 'datepicker'}, templates['default'].scope.popover));
+        var emit = spyOn(myPopover.$scope, '$emit');
+        scope.$digest();
+        myPopover.show();
+        myPopover.hide();
+        $animate.flush();
+
+        expect(emit).toHaveBeenCalledWith('datepicker.show.before', myPopover);
+        expect(emit).toHaveBeenCalledWith('datepicker.show', myPopover);
+        expect(emit).toHaveBeenCalledWith('datepicker.hide.before', myPopover);
+        expect(emit).toHaveBeenCalledWith('datepicker.hide', myPopover);
+      });
+
+
+      it('should call namespaced events through directive', function() {
+        var elm = compileDirective('default-with-namespace');
+        var showBefore, show, hide, hideBefore;
+        scope.$on('datepicker.show.before', function() {
+          showBefore = true;
+        });
+        scope.$on('datepicker.show', function() {
+          show = true;
+        });
+        scope.$on('datepicker.hide.before', function() {
+          hideBefore = true;
+        });
+        scope.$on('datepicker.hide', function() {
+          hide = true;
+        });
+
+        angular.element(elm[0]).triggerHandler('click');
+        $animate.flush();
+
+        expect(showBefore).toBe(true);
+        expect(show).toBe(true);
+
+        angular.element(elm[0]).triggerHandler('click');
+        $animate.flush();
+
+        expect(hideBefore).toBe(true);
+        expect(hide).toBe(true);
+      });
+
+    });
 
   });
 

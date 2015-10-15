@@ -40,7 +40,7 @@ describe('aside', function () {
     },
     'options-template': {
       scope: {aside: {title: 'Title', content: 'Hello aside!', counter: 0}, items: ['foo', 'bar', 'baz']},
-      element: '<a data-template="custom" bs-aside="aside">click me</a>'
+      element: '<a data-template-url="custom" bs-aside="aside">click me</a>'
     },
     'options-html': {
       scope: {aside: {title: 'title<br>next', content: 'content<br>next'}},
@@ -193,6 +193,43 @@ describe('aside', function () {
         angular.element(elm[0]).triggerHandler('click');
         expect(angular.element(sandboxEl.find('.aside-inner > .btn')[0]).triggerHandler('click'));
         expect(scope.aside.counter).toBe(2);
+      });
+
+      it('should destroy inner scopes when hidding aside', function() {
+        var scopeCount = countScopes(scope, 0);
+        var originalScope = scope;
+        scope = scope.$new();
+        $templateCache.put('custom', '<div class="aside"><div class="aside-inner"><div ng-if="1===1">Fake element to force creation of a new $scope</div><div class="btn" ng-click="$hide()"></div></div></div>');
+        var elm = compileDirective('options-template');
+
+        // We are only destroying the aside element before showing another
+        // aside. This is to avoid timming issues with the hide animation
+        // callback, because we could be showing a new aside before the
+        // hide animation callback has been called and then the aside element
+        // variables would be replaced with the new aside.
+        // So, for this test to work, we need to show/hide the aside once
+        // before counting the number of scopes expected.
+        angular.element(elm[0]).triggerHandler('click');
+        expect(angular.element(sandboxEl.find('.aside-inner > .btn')[0]).triggerHandler('click'));
+
+        // repeat process to test creation/destruction of inner scopes
+        var scopeCountAfterShow = countScopes(scope, 0);
+        for (var i = 0; i < 10; i++) {
+          // show aside
+          angular.element(elm[0]).triggerHandler('click');
+
+          // hide aside
+          expect(angular.element(sandboxEl.find('.aside-inner > .btn')[0]).triggerHandler('click'));
+        }
+
+        // scope count should be the same as it was when directive finished initialization
+        expect(countScopes(scope, 0)).toBe(scopeCountAfterShow);
+
+        scope.$destroy();
+        scope = originalScope;
+
+        // scope count should be the same as it was before directive was initialized
+        expect(countScopes(scope, 0)).toBe(scopeCount);
       });
 
     });

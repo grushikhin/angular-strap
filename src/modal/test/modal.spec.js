@@ -3,12 +3,18 @@
 describe('modal', function() {
 
   var bodyEl = $('body'), sandboxEl;
-  var $rootScope, $compile, $templateCache, $$rAF, $animate, $httpBackend, $modal, scope;
+  var $rootScope, $compile, $templateCache, $$rAF, $animate, $timeout, $httpBackend, $modal, scope;
 
   beforeEach(module('ngSanitize'));
   beforeEach(module('ngAnimate'));
   beforeEach(module('ngAnimateMock'));
   beforeEach(module('mgcrea.ngStrap.modal'));
+  beforeEach(module(function($controllerProvider) {
+    $controllerProvider.register('MyModalController', function($scope) {
+      $scope.title = 'foo';
+      $scope.content = 'bar';
+    });
+  }));
 
   beforeEach(inject(function($injector) {
     $rootScope = $injector.get('$rootScope');
@@ -16,6 +22,11 @@ describe('modal', function() {
     $templateCache = $injector.get('$templateCache');
     $$rAF = $injector.get('$$rAF');
     $animate = $injector.get('$animate');
+    $timeout = $injector.get('$timeout');
+    var flush = $animate.flush || $animate.triggerCallbacks;
+    $animate.flush = function() {
+      flush.call($animate); if(!$animate.triggerCallbacks) $timeout.flush();
+    };
     $httpBackend = $injector.get('$httpBackend');
     $modal = $injector.get('$modal');
 
@@ -36,6 +47,10 @@ describe('modal', function() {
       scope: {modal: {title: 'Title', content: 'Hello Modal!'}},
       element: '<a title="{{modal.title}}" data-content="{{modal.content}}" bs-modal>click me</a>'
     },
+    'default-with-namespace': {
+      scope: {modal: {title: 'Title', content: 'Hello Modal!'}},
+      element: '<a title="{{modal.title}}" data-content="{{modal.content}}" bs-modal data-prefix-event="datepicker">click me</a>'
+    },
     'default-with-id': {
       scope: {modal: {title: 'Title', content: 'Hello Modal!'}},
       element: '<a id="modal1" title="{{modal.title}}" data-content="{{modal.content}}" bs-modal>click me</a>'
@@ -49,6 +64,9 @@ describe('modal', function() {
     },
     'markup-ngClick-service': {
       element: '<a ng-click="showModal()">click me</a>'
+    },
+    'options-controller': {
+      element: '<a data-controller="MyModalController" bs-modal>click me</a>'
     },
     'options-placement': {
       element: '<a data-placement="bottom" bs-modal="modal">click me</a>'
@@ -71,7 +89,11 @@ describe('modal', function() {
     },
     'options-template': {
       scope: {modal: {title: 'Title', content: 'Hello Modal!', counter: 0}, items: ['foo', 'bar', 'baz']},
-      element: '<a title="{{modal.title}}" data-content="{{modal.content}}" data-template="custom" bs-modal>click me</a>'
+      element: '<a title="{{modal.title}}" data-content="{{modal.content}}" data-template-url="custom" bs-modal>click me</a>'
+    },
+    'options-contentTemplate': {
+      scope: {modal: {title: 'Title', content: 'Hello Modal!', counter: 0}, items: ['foo', 'bar', 'baz']},
+      element: '<a title="{{modal.title}}" data-content="{{modal.content}}" data-content-template="custom" bs-modal>click me</a>'
     }
   };
 
@@ -193,22 +215,22 @@ describe('modal', function() {
       expect(sandboxEl.children('.modal').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
       elmScope.$show();
-      $animate.triggerCallbacks();
+      try { $animate.flush(); } catch(err) {}
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(1);
       expect(elmScope.$isShown).toBeTruthy();
       elmScope.$hide();
-      $animate.triggerCallbacks();
+      $animate.flush();
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
       elmScope.$toggle();
-      $animate.triggerCallbacks();
+      $animate.flush();
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(1);
       expect(elmScope.$isShown).toBeTruthy();
       elmScope.$toggle();
-      $animate.triggerCallbacks();
+      $animate.flush();
       scope.$digest();
       expect(sandboxEl.children('.tooltip').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
@@ -218,7 +240,7 @@ describe('modal', function() {
       expect(sandboxEl.children('.modal').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
       elmScope.$hide();
-      $animate.triggerCallbacks();
+      try { $animate.flush(); } catch(err) {}
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
@@ -228,12 +250,11 @@ describe('modal', function() {
       expect(sandboxEl.children('.modal').length).toBe(0);
       expect(elmScope.$isShown).toBeFalsy();
       elmScope.$show();
-      $animate.triggerCallbacks();
+      try { $animate.flush(); } catch(err) {}
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(1);
       expect(elmScope.$isShown).toBeTruthy();
       elmScope.$show();
-      $animate.triggerCallbacks();
       scope.$digest();
       expect(sandboxEl.children('.modal').length).toBe(1);
       expect(elmScope.$isShown).toBeTruthy();
@@ -251,7 +272,7 @@ describe('modal', function() {
       expect(emit).toHaveBeenCalledWith('modal.show.before', myModal);
       // show only fires AFTER the animation is complete
       expect(emit).not.toHaveBeenCalledWith('modal.show', myModal);
-      $animate.triggerCallbacks();
+      $animate.flush();
       expect(emit).toHaveBeenCalledWith('modal.show', myModal);
     });
 
@@ -264,7 +285,7 @@ describe('modal', function() {
       expect(emit).toHaveBeenCalledWith('modal.hide.before', myModal);
       // hide only fires AFTER the animation is complete
       expect(emit).not.toHaveBeenCalledWith('modal.hide', myModal);
-      $animate.triggerCallbacks();
+      $animate.flush();
       expect(emit).toHaveBeenCalledWith('modal.hide', myModal);
     });
 
@@ -273,7 +294,7 @@ describe('modal', function() {
       var emit = spyOn(myModal.$scope, '$emit').and.callThrough();
       scope.$digest();
       myModal.hide();
-      $animate.triggerCallbacks();
+      $animate.flush();
 
       expect(emit).toHaveBeenCalledWith('alert.show.before', myModal);
       expect(emit).toHaveBeenCalledWith('alert.show', myModal);
@@ -290,10 +311,10 @@ describe('modal', function() {
       });
       var myModal = $modal(templates['default'].scope.modal);
       scope.$digest();
-      $animate.triggerCallbacks();
+      try { $animate.flush(); } catch(err) {}
     });
 
-    it('should can cancel hide on hide.before event', function() {
+    it('should be able to cancel hide on hide.before event', function() {
       $rootScope.$on('modal.hide.before', function(e) {
         e.preventDefault();
       });
@@ -303,7 +324,7 @@ describe('modal', function() {
       var myModal = $modal(templates['default'].scope.modal);
       scope.$digest();
       myModal.hide();
-      $animate.triggerCallbacks();
+      $animate.flush();
     });
 
     it('should call show.before event with modal element instance id', function() {
@@ -316,6 +337,35 @@ describe('modal', function() {
       angular.element(elm[0]).triggerHandler('click');
       scope.$digest();
       expect(id).toBe('modal1');
+    });
+
+    it('should call namespaced events through directive', function() {
+      var elm = compileDirective('default-with-namespace');
+      var showBefore, show, hide, hideBefore;
+      scope.$on('datepicker.show.before', function() {
+        showBefore = true;
+      });
+      scope.$on('datepicker.show', function() {
+        show = true;
+      });
+      scope.$on('datepicker.hide.before', function() {
+        hideBefore = true;
+      });
+      scope.$on('datepicker.hide', function() {
+        hide = true;
+      });
+
+      angular.element(elm[0]).triggerHandler('click');
+      $animate.flush();
+
+      expect(showBefore).toBe(true);
+      expect(show).toBe(true);
+
+      angular.element(elm[0]).triggerHandler('click');
+      $animate.flush();
+
+      expect(hideBefore).toBe(true);
+      expect(hide).toBe(true);
     });
 
   });
@@ -376,6 +426,17 @@ describe('modal', function() {
         var evt = jQuery.Event( 'keyup', { keyCode: 27, which: 27 } );
         modal.triggerHandler(evt)
         expect(bodyEl.find('.modal').length).toBe(1);
+      });
+
+    });
+
+    describe('controller', function() {
+
+      it('should properly invoke our passed controller', function() {
+        var elm = compileDirective('options-controller');
+        angular.element(elm[0]).triggerHandler('click');
+        expect(sandboxEl.find('.modal-title').html()).toBe('foo');
+        expect(sandboxEl.find('.modal-body').html()).toBe('bar');
       });
 
     });
@@ -511,6 +572,54 @@ describe('modal', function() {
         angular.element(elm[0]).triggerHandler('click');
         expect(angular.element(sandboxEl.find('.modal-inner > .btn')[0]).triggerHandler('click'));
         expect(scope.modal.counter).toBe(2);
+      });
+
+      it('should destroy inner scopes when hidding modal', function() {
+        var scopeCount = countScopes(scope, 0);
+        var originalScope = scope;
+        scope = scope.$new();
+        $templateCache.put('custom', '<div class="modal"><div class="modal-inner"><div ng-if="1===1">Fake element to force creation of a new $scope</div><div class="btn" ng-click="$hide()"></div></div></div>');
+        var elm = compileDirective('options-template');
+
+        // We are only destroying the modal element before showing another
+        // modal. This is to avoid timming issues with the hide animation
+        // callback, because we could be showing a new modal before the
+        // hide animation callback has been called and then the modal element
+        // variables would be replaced with the new modal.
+        // So, for this test to work, we need to show/hide the modal once
+        // before counting the number of scopes expected.
+        angular.element(elm[0]).triggerHandler('click');
+        expect(angular.element(sandboxEl.find('.modal-inner > .btn')[0]).triggerHandler('click'));
+
+        // repeat process to test creation/destruction of inner scopes
+        var scopeCountAfterShow = countScopes(scope, 0);
+        for (var i = 0; i < 10; i++) {
+          // show modal
+          angular.element(elm[0]).triggerHandler('click');
+
+          // hide modal
+          expect(angular.element(sandboxEl.find('.modal-inner > .btn')[0]).triggerHandler('click'));
+        }
+
+        // scope count should be the same as it was when directive finished initialization
+        expect(countScopes(scope, 0)).toBe(scopeCountAfterShow);
+
+        scope.$destroy();
+        scope = originalScope;
+
+        // scope count should be the same as it was before directive was initialized
+        expect(countScopes(scope, 0)).toBe(scopeCount);
+      });
+
+    });
+
+    describe('contentTemplate', function() {
+
+      it('should support custom contentTemplate', function() {
+        $templateCache.put('custom', 'baz: {{title}}');
+        var elm = compileDirective('options-contentTemplate');
+        angular.element(elm[0]).triggerHandler('click');
+        expect(sandboxEl.find('.modal-body').text()).toBe('baz: ' + scope.modal.title);
       });
 
     });
